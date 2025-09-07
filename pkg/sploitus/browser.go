@@ -1,12 +1,12 @@
 package sploitus
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/input"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/scagogogo/sploitus-crawler/pkg/types"
@@ -23,23 +23,18 @@ type BrowserSearcher struct {
 func NewBrowserSearcher(debug bool) (*BrowserSearcher, error) {
 	// 设置无头浏览器
 	l := launcher.New().
-		Headless(true).  // 无头模式
-		Devtools(false). // 关闭DevTools
-		UserDataDir(""). // 不使用用户数据目录
-		NoSandbox(true). // 禁用沙箱（在某些环境中可能需要）
-		Proxy("")        // 不使用代理
-
-	if debug {
-		l = l.Headless(false) // 调试模式下显示浏览器窗口
-	}
+		Headless(!debug). // 调试模式下显示浏览器窗口
+		Devtools(false).  // 关闭DevTools
+		UserDataDir("").  // 不使用用户数据目录
+		NoSandbox(true).  // 禁用沙箱（在某些环境中可能需要）
+		Proxy("")         // 不使用代理
 
 	url := l.MustLaunch()
 
 	// 创建浏览器
 	browser := rod.New().
 		ControlURL(url).
-		Trace(debug).
-		SlowMotion(500 * time.Millisecond) // 调试时延迟操作
+		Trace(debug)
 
 	// 连接浏览器
 	err := browser.Connect()
@@ -68,134 +63,124 @@ func (bs *BrowserSearcher) Search(query string, searchType string, sort string, 
 	}
 	defer page.Close()
 
+	// 设置自定义Headers
+	page.MustEvalOnNewDocument(`() => {
+		Object.defineProperty(navigator, 'webdriver', {get: () => false});
+	}`)
+
 	// 先访问主页以获取CloudFlare clearance
+	fmt.Println("正在访问Sploitus主页...")
 	if err := page.Navigate(DefaultBaseURL); err != nil {
 		return nil, fmt.Errorf("导航到Sploitus主页失败: %w", err)
 	}
 
-	// 等待页面加载完成并通过CloudFlare检查
-	if err := page.WaitIdle(30 * time.Second); err != nil {
+	// 等待CloudFlare验证完成
+	fmt.Println("等待CloudFlare验证...")
+	time.Sleep(5 * time.Second)
+	
+	// 等待页面加载完成
+	if err := page.WaitLoad(); err != nil {
 		return nil, fmt.Errorf("等待页面加载完成失败: %w", err)
 	}
 
-	// 准备搜索查询
-	searchQuery := types.SearchQuery{
-		Type:   searchType,
-		Sort:   sort,
-		Query:  query,
-		Title:  true,
-		Offset: offset,
-	}
-
-	jsonData, err := json.Marshal(searchQuery)
-	if err != nil {
-		return nil, fmt.Errorf("序列化搜索查询失败: %w", err)
-	}
-
-	// 设置请求拦截器来捕获API响应
-	router := page.HijackRequests()
-	defer router.Stop()
-
-	// 创建一个通道来接收API响应
-	responseChan := make(chan *types.SearchResponse, 1)
-	errorChan := make(chan error, 1)
-
-	// 监听搜索API请求
-	router.MustAdd(DefaultBaseURL+SearchEndpoint, func(ctx *rod.Hijack) {
-		// 对于POST请求，我们替换为我们的查询
-		if ctx.Request.Method() == "POST" {
-			// 修改请求体
-			ctx.Request.SetBody(jsonData)
-
-			// 修改头部
-			ctx.Request.Req().Header.Set("Content-Type", "application/json")
-			ctx.Request.Req().Header.Set("Accept", "application/json")
-			ctx.Request.Req().Header.Set("Referer", DefaultBaseURL+"/?query="+query)
-
-			// 执行请求并等待响应
-			ctx.MustLoadResponse()
-
-			// 解析响应数据
-			var searchResp types.SearchResponse
-			body := []byte(ctx.Response.Body())
-			err := json.Unmarshal(body, &searchResp)
-			if err != nil {
-				errorChan <- fmt.Errorf("解析API响应失败: %w", err)
-				return
-			}
-
-			if bs.debug {
-				fmt.Println("API响应:", ctx.Response.Body())
-			}
-
-			// 发送响应到通道
-			responseChan <- &searchResp
-		} else {
-			// 其他请求正常继续
-			ctx.MustLoadResponse()
-		}
-	})
-
-	// 开始监听
-	go router.Run()
-
-	// 导航到搜索页面或直接触发API调用
-	if err := page.Navigate(DefaultBaseURL + "/?query=" + url.QueryEscape(query)); err != nil {
-		return nil, fmt.Errorf("导航到搜索页面失败: %w", err)
-	}
-
-	// 等待页面加载完成
-	if err := page.WaitIdle(30 * time.Second); err != nil {
-		return nil, fmt.Errorf("等待搜索页面加载完成失败: %w", err)
-	}
-
-	// 等待搜索框出现
-	_, err = page.Element("input[type='text']")
-	if err == nil {
-		// 点击搜索按钮
-		searchButton, err := page.Element("button.search-button")
-		if err == nil {
-			if err := searchButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
-				if bs.debug {
-					fmt.Println("点击搜索按钮失败:", err)
-				}
-			}
-
-			// 等待搜索结果加载
-			time.Sleep(2 * time.Second)
-		}
-	}
-
-	// 等待响应或超时
-	select {
-	case response := <-responseChan:
-		return response, nil
-	case err := <-errorChan:
-		return nil, err
-	case <-time.After(10 * time.Second):
-		// 如果没有收到API响应，尝试从HTML提取数据
-		if bs.debug {
-			fmt.Println("API响应超时，尝试从页面提取数据")
-		}
-
-		exploits := bs.extractResultsFromPage(page)
-		if exploits == nil {
-			return nil, fmt.Errorf("获取搜索结果失败: 超时且无法从页面提取数据")
-		}
-
+	// 现在尝试进行搜索
+	fmt.Printf("正在搜索: %s\n", query)
+	
+	// 查找搜索框并输入查询
+	searchBox := page.MustElement("input[type='text']")
+	searchBox.MustInput(query)
+	time.Sleep(1 * time.Second)
+	
+	// 按Enter键触发搜索
+	searchBox.MustType(input.Enter)
+	fmt.Println("已触发搜索，等待结果...")
+	
+	// 等待搜索结果加载
+	time.Sleep(5 * time.Second)
+	
+	// 直接从页面提取结果
+	fmt.Println("正在从页面提取搜索结果...")
+	exploits := bs.extractResultsFromPage(page)
+	if exploits != nil && len(exploits.Exploits) > 0 {
+		fmt.Printf("成功提取到 %d 条结果\n", len(exploits.Exploits))
 		return exploits, nil
 	}
+	
+	return nil, fmt.Errorf("获取搜索结果失败: 无法从页面提取数据")
 }
 
 // extractResultsFromPage 从页面中提取搜索结果
 func (bs *BrowserSearcher) extractResultsFromPage(page *rod.Page) *types.SearchResponse {
-	// 此方法在新的实现中不再需要使用，但保留作为备份
 	var exploits []types.Exploit
-
-	// 查找所有结果项
-	resultItems, err := page.Elements(".exploit-card")
-	if err != nil {
-		fmt.Println("找不到结果项:", err)
+	
+	// 尝试多种可能的选择器
+	selectors := []string{
+		"a[href*='/exploit?id=']",  // Sploitus的漏洞链接
+		".text-default",  // 可能的结果项
+		"div[class*='card']",
+		"div[class*='result']",
+		"article",
+	}
+	
+	var resultItems []*rod.Element
+	var err error
+	
+	// 尝试使用最可能的选择器
+	for _, selector := range selectors {
+		resultItems, err = page.Elements(selector)
+		if err == nil && len(resultItems) > 0 {
+			if bs.debug {
+				fmt.Printf("使用选择器 %s 找到 %d 个元素\n", selector, len(resultItems))
+			}
+			// 如果是链接选择器，直接处理
+			if selector == "a[href*='/exploit?id=']" {
+				for _, item := range resultItems {
+					var exploit types.Exploit
+					
+					// 提取标题
+					title, _ := item.Text()
+					if title != "" {
+						exploit.Title = title
+					}
+					
+					// 提取链接
+					href, err := item.Attribute("href")
+					if err == nil && href != nil {
+						exploit.Href = DefaultBaseURL + *href
+						// 从URL中提取ID
+						if strings.Contains(*href, "id=") {
+							parts := strings.Split(*href, "id=")
+							if len(parts) > 1 {
+								exploit.ID = parts[1]
+							}
+						}
+					}
+					
+					if exploit.Title != "" {
+						exploits = append(exploits, exploit)
+					}
+				}
+				
+				if len(exploits) > 0 {
+					return &types.SearchResponse{
+						Exploits:      exploits,
+						ExploitsTotal: len(exploits),
+					}
+				}
+			}
+			break
+		}
+	}
+	
+	if len(resultItems) == 0 {
+		if bs.debug {
+			fmt.Println("没有找到任何结果项")
+			// 尝试获取页面HTML以便调试
+			html, _ := page.HTML()
+			if len(html) > 500 {
+				fmt.Printf("页面HTML片段: %s...\n", html[:500])
+			}
+		}
 		return nil
 	}
 
