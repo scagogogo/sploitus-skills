@@ -131,8 +131,6 @@ func (c *Client) SearchWithQuery(searchQuery *types.SearchQuery) (*types.SearchR
 		return nil, fmt.Errorf("failed to marshal search query: %w", err)
 	}
 
-	// 打印实际发送的请求数据
-	fmt.Printf("DEBUG - 请求数据: %s\n", string(jsonData))
 
 	url := c.BaseURL + SearchEndpoint
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
@@ -161,7 +159,6 @@ func (c *Client) SearchWithQuery(searchQuery *types.SearchQuery) (*types.SearchR
 	// 添加Cookies
 	for _, cookie := range c.Cookies {
 		req.AddCookie(cookie)
-		fmt.Printf("DEBUG - 添加Cookie: %s=%s\n", cookie.Name, cookie.Value)
 	}
 
 	resp, err := c.HTTPClient.Do(req)
@@ -181,8 +178,6 @@ func (c *Client) SearchWithQuery(searchQuery *types.SearchQuery) (*types.SearchR
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// 打印实际接收的响应数据
-	fmt.Printf("DEBUG - 响应数据: %s\n", string(body))
 
 	var searchResponse types.SearchResponse
 	if err := json.Unmarshal(body, &searchResponse); err != nil {

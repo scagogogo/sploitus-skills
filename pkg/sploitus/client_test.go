@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/scagogogo/sploitus-skills/pkg/types"
@@ -280,7 +281,7 @@ func TestErrorHandling(t *testing.T) {
 		t.Error("Expected error, got nil")
 	}
 
-	if err != nil && err.Error() != "API returned non-200 status code: 500" {
+	if err != nil && !strings.Contains(err.Error(), "non-200 status code: 500") {
 		t.Errorf("Expected error message to contain 'non-200 status code: 500', got: %s", err.Error())
 	}
 }
