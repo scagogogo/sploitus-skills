@@ -19,8 +19,8 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/scagogogo/sploitus-crawler.git
-cd sploitus-crawler
+git clone https://github.com/scagogogo/sploitus-skills.git
+cd sploitus-skills
 
 # 构建二进制文件
 go build -o sploitus ./cmd/sploitus
@@ -109,7 +109,7 @@ import (
 	"fmt"
 	"log"
 	
-	"github.com/scagogogo/sploitus-crawler/pkg/sploitus"
+	"github.com/scagogogo/sploitus-skills/pkg/sploitus"
 )
 
 func main() {
@@ -256,8 +256,8 @@ A command-line tool and Go library for searching and exporting exploit data from
 
 ```bash
 # Clone the repository
-git clone https://github.com/scagogogo/sploitus-crawler.git
-cd sploitus-crawler
+git clone https://github.com/scagogogo/sploitus-skills.git
+cd sploitus-skills
 
 # Build the binary
 go build -o sploitus ./cmd/sploitus
@@ -346,7 +346,7 @@ import (
 	"fmt"
 	"log"
 	
-	"github.com/scagogogo/sploitus-crawler/pkg/sploitus"
+	"github.com/scagogogo/sploitus-skills/pkg/sploitus"
 )
 
 func main() {
