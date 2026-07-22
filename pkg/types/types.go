@@ -26,3 +26,16 @@ type SearchResponse struct {
 	Exploits      []Exploit `json:"exploits"`
 	ExploitsTotal int       `json:"exploits_total"`
 }
+
+// ExploitDetail represents detailed information for a single exploit
+type ExploitDetail struct {
+	ID          string  `json:"id"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	Published   string  `json:"published"`
+	Source      string  `json:"source"`
+	Language    string  `json:"language"`
+	Score       float64 `json:"score"`
+	Type        string  `json:"type"`
+	Href        string  `json:"href"`
+}
