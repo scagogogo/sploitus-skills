@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/scagogogo/sploitus-skills/pkg/sploitus"
 	"github.com/scagogogo/sploitus-skills/pkg/types"
 	"github.com/spf13/cobra"
 )
@@ -25,57 +26,91 @@ var payloadCmd = &cobra.Command{
 	Use:   "payload [查询词]",
 	Short: "搜索并保存漏洞利用代码",
 	Long: `根据关键词搜索漏洞利用代码，并将结果保存到本地文件夹。
-此命令会自动获取所有匹配结果，并为每个结果创建单独的文件，文件格式会根据漏洞利用的语言自动选择。
-结果元数据（如标题、得分、链接等）会作为注释添加在文件头部。
+	此命令会自动获取所有匹配结果，并为每个结果创建单独的文件，文件格式会根据漏洞利用的语言自动选择。
+	结果元数据（如标题、得分、链接等）会作为注释添加在文件头部。
 
-示例:
-  sploitus payload "wordpress"
-  sploitus payload "cve:2021-44228" --type=cve --output=./exploits
-  sploitus payload "sql injection" --max=50 --naming=title
-  sploitus payload "log4j" --sort=date --naming=both --lang=en`,
+	示例:
+		 sploitus payload "wordpress"
+		 sploitus payload "cve:2021-44228" --type=cve --output=./exploits
+		 sploitus payload "sql injection" --max=50 --naming=title
+		 sploitus payload "log4j" --sort=date --naming=both --lang=en
+		 sploitus payload "CVE-2023-xxx" --browser --output=./output`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		query := strings.Join(args, " ")
 
-		// 创建客户端
-		client, err := createClient()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "错误: %v\n", err)
-			os.Exit(1)
-		}
+		// 第一次搜索，获取第一页结果
+		var firstPage *types.SearchResponse
+		var err error
 
-		// 创建分页助手
-		pagination := client.NewPaginationHelper(query, payloadSearchType, payloadSortType)
-
-		// 开始搜索
-		if payloadLang == "en" {
-			fmt.Printf("Searching for exploit code: %q (type: %s, sort: %s)\n",
-				query, payloadSearchType, payloadSortType)
-			fmt.Println("Fetching matching results, please wait...")
-		} else {
-			fmt.Printf("正在搜索漏洞利用代码: %q (类型: %s, 排序: %s)\n",
-				query, payloadSearchType, payloadSortType)
-			fmt.Println("自动获取匹配结果，请稍候...")
-		}
-
-		// 获取第一页，了解总数
-		firstPage, err := pagination.GetFirstPage()
-		if err != nil {
+		if useBrowser {
+			// 使用浏览器执行搜索
 			if payloadLang == "en" {
-				fmt.Fprintf(os.Stderr, "Search failed: %v\n", err)
+				fmt.Println("Using browser automation to bypass CloudFlare protection...")
 			} else {
-				fmt.Fprintf(os.Stderr, "搜索失败: %v\n", err)
+				fmt.Println("正在使用自动化浏览器绕过CloudFlare保护...")
 			}
-			os.Exit(1)
+
+			browser, browserErr := sploitus.NewBrowserSearcher(debugBrowser)
+			if browserErr != nil {
+				if payloadLang == "en" {
+					fmt.Fprintf(os.Stderr, "Failed to create browser: %v\n", browserErr)
+				} else {
+					fmt.Fprintf(os.Stderr, "创建浏览器失败: %v\n", browserErr)
+				}
+				os.Exit(1)
+			}
+			defer browser.Close()
+
+			firstPage, err = browser.Search(query, payloadSearchType, payloadSortType, 0)
+			if err != nil {
+				if payloadLang == "en" {
+					fmt.Fprintf(os.Stderr, "Browser search failed: %v\n", err)
+				} else {
+					fmt.Fprintf(os.Stderr, "浏览器搜索失败: %v\n", err)
+				}
+				os.Exit(1)
+			}
+		} else {
+			// 创建客户端
+			client, err := createClient()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "错误: %v\n", err)
+				os.Exit(1)
+			}
+
+			// 创建分页助手
+			pagination := client.NewPaginationHelper(query, payloadSearchType, payloadSortType)
+
+			// 开始搜索
+			if payloadLang == "en" {
+				fmt.Printf("Searching for exploit code: %q (type: %s, sort: %s)\n",
+					query, payloadSearchType, payloadSortType)
+				fmt.Println("Fetching matching results, please wait...")
+			} else {
+				fmt.Printf("正在搜索漏洞利用代码: %q (类型: %s, 排序: %s)\n",
+					query, payloadSearchType, payloadSortType)
+				fmt.Println("自动获取匹配结果，请稍候...")
+			}
+
+			// 获取第一页，了解总数
+			firstPage, err = pagination.GetFirstPage()
+			if err != nil {
+				if payloadLang == "en" {
+					fmt.Fprintf(os.Stderr, "Search failed: %v\n", err)
+				} else {
+					fmt.Fprintf(os.Stderr, "搜索失败: %v\n", err)
+				}
+				os.Exit(1)
+			}
 		}
 
 		totalItems := firstPage.ExploitsTotal
-		totalPages, _ := pagination.GetTotalPages()
 
 		if payloadLang == "en" {
-			fmt.Printf("Found %d exploit(s) (total %d pages)\n", totalItems, totalPages)
+			fmt.Printf("Found %d exploit(s)\n", totalItems)
 		} else {
-			fmt.Printf("找到 %d 条漏洞利用 (共 %d 页)\n", totalItems, totalPages)
+			fmt.Printf("找到 %d 条漏洞利用\n", totalItems)
 		}
 
 		if totalItems == 0 {
@@ -102,49 +137,56 @@ var payloadCmd = &cobra.Command{
 		var allExploits []types.Exploit
 		allExploits = append(allExploits, firstPage.Exploits...)
 
-		// 已经获取了第一页，现在获取剩余页面
-		if payloadLang == "en" {
-			fmt.Print("Fetching results: ")
-		} else {
-			fmt.Print("正在获取结果: ")
-		}
-		currentPage := 1
-		fmt.Printf("%d ", currentPage)
-
-		for len(allExploits) < limitedResults && pagination.HasMore() {
-			// 获取下一页
-			nextPage, err := pagination.GetNextPage()
-			if err != nil {
-				if payloadLang == "en" {
-					fmt.Fprintf(os.Stderr, "\nFailed to get next page: %v\n", err)
-				} else {
-					fmt.Fprintf(os.Stderr, "\n获取下一页失败: %v\n", err)
-				}
-				break
+		// 在浏览器模式下，第一页已经获取了所有结果
+		// 在API模式下，需要自动翻页获取剩余页面
+		if !useBrowser {
+			// 已经获取了第一页，现在获取剩余页面
+			if payloadLang == "en" {
+				fmt.Print("Fetching results: ")
+			} else {
+				fmt.Print("正在获取结果: ")
 			}
-
-			if len(nextPage.Exploits) == 0 {
-				break
-			}
-
-			// 添加结果
-			allExploits = append(allExploits, nextPage.Exploits...)
-
-			// 检查是否达到限制
-			if payloadMaxResults > 0 && len(allExploits) >= payloadMaxResults {
-				allExploits = allExploits[:payloadMaxResults]
-				break
-			}
-
-			// 打印进度
-			currentPage++
+			currentPage := 1
 			fmt.Printf("%d ", currentPage)
-		}
 
-		if payloadLang == "en" {
-			fmt.Println("\nFetching completed")
-		} else {
-			fmt.Println("\n获取完成")
+			client, _ := createClient()
+			pagination := client.NewPaginationHelper(query, payloadSearchType, payloadSortType)
+
+			for len(allExploits) < limitedResults && pagination.HasMore() {
+				// 获取下一页
+				nextPage, err := pagination.GetNextPage()
+				if err != nil {
+					if payloadLang == "en" {
+						fmt.Fprintf(os.Stderr, "\nFailed to get next page: %v\n", err)
+					} else {
+						fmt.Fprintf(os.Stderr, "\n获取下一页失败: %v\n", err)
+					}
+					break
+				}
+
+				if len(nextPage.Exploits) == 0 {
+					break
+				}
+
+				// 添加结果
+				allExploits = append(allExploits, nextPage.Exploits...)
+
+				// 检查是否达到限制
+				if payloadMaxResults > 0 && len(allExploits) >= payloadMaxResults {
+					allExploits = allExploits[:payloadMaxResults]
+					break
+				}
+
+				// 打印进度
+				currentPage++
+				fmt.Printf("%d ", currentPage)
+			}
+
+			if payloadLang == "en" {
+				fmt.Println("\nFetching completed")
+			} else {
+				fmt.Println("\n获取完成")
+			}
 		}
 
 		// 创建输出目录
@@ -217,6 +259,8 @@ func init() {
 	payloadCmd.Flags().StringVarP(&payloadOutputDir, "output", "o", "", "输出目录 (默认: ./payloads/查询词)")
 	payloadCmd.Flags().StringVarP(&payloadNaming, "naming", "n", "id", "文件命名方式 (id, title, both)")
 	payloadCmd.Flags().StringVarP(&payloadLang, "lang", "l", "cn", "输出语言 (cn: 中文, en: 英文)")
+	payloadCmd.Flags().BoolVarP(&useBrowser, "browser", "b", false, "使用自动化浏览器绕过CloudFlare保护")
+	payloadCmd.Flags().BoolVarP(&debugBrowser, "debug-browser", "d", false, "启用浏览器调试模式（显示浏览器窗口）")
 }
 
 // 根据漏洞语言选择正确的文件扩展名
