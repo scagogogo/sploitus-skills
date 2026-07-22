@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/scagogogo/sploitus-crawler/pkg/types"
+	"github.com/scagogogo/sploitus-skills/pkg/types"
 )
 
 const (

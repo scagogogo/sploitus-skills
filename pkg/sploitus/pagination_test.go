@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/scagogogo/sploitus-crawler/pkg/types"
+	"github.com/scagogogo/sploitus-skills/pkg/types"
 )
 
 func TestPaginationHelper(t *testing.T) {

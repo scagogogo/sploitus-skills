@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/scagogogo/sploitus-crawler/pkg/types"
+	"github.com/scagogogo/sploitus-skills/pkg/types"
 )
 
 func TestNewClient(t *testing.T) {

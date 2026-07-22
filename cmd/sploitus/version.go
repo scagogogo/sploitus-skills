@@ -22,6 +22,6 @@ var versionCmd = &cobra.Command{
 		fmt.Printf("版本: %s\n", Version)
 		fmt.Printf("构建日期: %s\n", BuildDate)
 		fmt.Printf("Git Hash: %s\n", GitHash)
-		fmt.Println("\n项目地址: https://github.com/scagogogo/sploitus-crawler")
+		fmt.Println("\n项目地址: https://github.com/scagogogo/sploitus-skills")
 	},
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/scagogogo/sploitus-crawler/pkg/sploitus"
+	"github.com/scagogogo/sploitus-skills/pkg/sploitus"
 )
 
 func main() {

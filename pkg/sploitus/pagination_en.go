@@ -3,7 +3,7 @@ package sploitus
 import (
 	"fmt"
 
-	"github.com/scagogogo/sploitus-crawler/pkg/types"
+	"github.com/scagogogo/sploitus-skills/pkg/types"
 )
 
 // EnPaginationHelper provides helper functions for pagination in English

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/scagogogo/sploitus-crawler/pkg/types"
+	"github.com/scagogogo/sploitus-skills/pkg/types"
 )
 
 // ExportJSON exports the search results to a JSON file

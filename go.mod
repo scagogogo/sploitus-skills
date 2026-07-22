@@ -1,4 +1,4 @@
-module github.com/scagogogo/sploitus-crawler
+module github.com/scagogogo/sploitus-skills
 
 go 1.23.2
 

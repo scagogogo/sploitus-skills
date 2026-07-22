@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/scagogogo/sploitus-crawler/pkg/sploitus"
-	"github.com/scagogogo/sploitus-crawler/pkg/types"
+	"github.com/scagogogo/sploitus-skills/pkg/sploitus"
+	"github.com/scagogogo/sploitus-skills/pkg/types"
 	"github.com/spf13/cobra"
 )
 

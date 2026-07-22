@@ -3,7 +3,7 @@ package sploitus
 import (
 	"fmt"
 
-	"github.com/scagogogo/sploitus-crawler/pkg/types"
+	"github.com/scagogogo/sploitus-skills/pkg/types"
 )
 
 // DefaultPageSize 是每页默认的结果数量
