@@ -188,12 +188,7 @@ func extractExploitsFromLinks(items []*rod.Element) []types.Exploit {
 		href, err := item.Attribute("href")
 		if err == nil && href != nil {
 			exploit.Href = DefaultBaseURL + *href
-			if strings.Contains(*href, "id=") {
-				parts := strings.Split(*href, "id=")
-				if len(parts) > 1 {
-					exploit.ID = parts[1]
-				}
-			}
+			exploit.ID = parseExploitIDFromHref(*href)
 		}
 
 		if exploit.Title != "" {
@@ -201,6 +196,18 @@ func extractExploitsFromLinks(items []*rod.Element) []types.Exploit {
 		}
 	}
 	return exploits
+}
+
+// parseExploitIDFromHref 从CSS选择器属性href中提取漏洞ID
+// 例如: "/exploit?id=0147E6AA-6963-51CE-90F9-420346FA917B" → "0147E6AA-6963-51CE-90F9-420346FA917B"
+func parseExploitIDFromHref(href string) string {
+	if strings.Contains(href, "id=") {
+		parts := strings.Split(href, "id=")
+		if len(parts) > 1 {
+			return parts[1]
+		}
+	}
+	return ""
 }
 
 // extractExploitFromCard 从卡片元素提取漏洞信息

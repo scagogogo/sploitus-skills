@@ -151,3 +151,57 @@ func TestSanitizeFilename(t *testing.T) {
 		}
 	}
 }
+
+func TestExportJSON_NestedDirectory(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sploitus-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	response := &types.SearchResponse{
+		Exploits: []types.Exploit{
+			{Title: "Nested Test", Score: 5.0, Type: "exploits", ID: "NEST-1"},
+		},
+		ExploitsTotal: 1,
+	}
+
+	// Export to a nested directory path
+	outputPath := filepath.Join(tempDir, "nested", "deep", "output.json")
+	err = ExportJSON(response, outputPath)
+	if err != nil {
+		t.Fatalf("ExportJSON to nested path failed: %v", err)
+	}
+	if _, err := os.Stat(outputPath); os.IsNotExist(err) {
+		t.Fatalf("Output file was not created at nested path")
+	}
+}
+
+func TestExportJSON_EmptyResponse(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "sploitus-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	response := &types.SearchResponse{
+		Exploits:      []types.Exploit{},
+		ExploitsTotal: 0,
+	}
+
+	outputPath := filepath.Join(tempDir, "empty.json")
+	err = ExportJSON(response, outputPath)
+	if err != nil {
+		t.Fatalf("ExportJSON with empty response failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(outputPath)
+	var loaded types.SearchResponse
+	json.Unmarshal(data, &loaded)
+	if loaded.ExploitsTotal != 0 {
+		t.Errorf("Expected ExploitsTotal 0, got %d", loaded.ExploitsTotal)
+	}
+	if len(loaded.Exploits) != 0 {
+		t.Errorf("Expected 0 exploits, got %d", len(loaded.Exploits))
+	}
+}
