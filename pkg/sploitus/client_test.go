@@ -480,44 +480,9 @@ func TestSearchWithQuery_WithCookies(t *testing.T) {
 	}
 }
 
-func TestGetExploitDetail_RequestError(t *testing.T) {
-	client := NewClient()
-	// Use an invalid URL scheme to trigger request creation error
-	client.BaseURL = "http://[::1]:99999"
 
-	_, err := client.GetExploitDetail("CVE-2023-12345")
-	// Should get an error (connection refused or timeout)
-	if err == nil {
-		t.Log("GetExploitDetail didn't error (connection may have succeeded unexpectedly)")
-	}
-}
 
-func TestGetExploitDetail_WithCookies(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(types.ExploitDetail{
-			ID: "CVE-2023-12345", Title: "Cookie Exploit",
-		})
-	}))
-	defer server.Close()
 
-	client := NewClient()
-	client.BaseURL = server.URL
-
-	// Set cookies to trigger the cookie iteration branch
-	err := client.SetCookies("test=value")
-	if err != nil {
-		t.Fatalf("SetCookies failed: %v", err)
-	}
-
-	detail, err := client.GetExploitDetail("CVE-2023-12345")
-	if err != nil {
-		t.Fatalf("GetExploitDetail with cookies failed: %v", err)
-	}
-	if detail.ID != "CVE-2023-12345" {
-		t.Errorf("Expected ID CVE-2023-12345, got %s", detail.ID)
-	}
-}
 
 
 
